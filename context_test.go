@@ -1,81 +1,86 @@
-package context
+package context_test
 
 import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/posener/context"
 )
 
 func TestSetTimeout(t *testing.T) {
 	t.Parallel()
-	Init()
 
-	ctx := Get()
-	cancel := SetTimeout(100 * time.Millisecond)
+	ctx := context.Init()
+	setCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
+	context.Set(setCtx)
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 
-	GoCtx(ctx, func() {
-		if _, ok := Deadline(); ok {
-			t.Error("no deadline was defined")
-		}
-		select {
-		case <-Done():
-			t.Error("no deadline was defined")
-		case <-time.After(100 * time.Millisecond):
-		}
+	context.Go(func() {
+		assertWithDeadline(t)
 		wg.Done()
 	})
 
-	Go(func() {
-		if _, ok := Deadline(); !ok {
-			t.Error("deadline did not propagated")
-		}
-		select {
-		case <-Done():
-		case <-time.After(500 * time.Millisecond):
-			t.Error("deadline did not propagated")
-		}
+	context.GoCtx(setCtx, func() {
+		assertWithDeadline(t)
+		wg.Done()
+	})
+
+	context.GoCtx(ctx, func() {
+		assertNoDeadline(t)
 		wg.Done()
 	})
 
 	wg.Wait()
 }
 
-func TestNewWithTimeout(t *testing.T) {
+func TestNoSetTimeout(t *testing.T) {
 	t.Parallel()
-	Init()
-	ctx, cancel := NewWithTimeout(100 * time.Millisecond)
+	ctx := context.Init()
+	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	Go(func() {
-		if _, ok := Deadline(); ok {
-			t.Error("no deadline was defined")
-		}
-		select {
-		case <-Done():
-			t.Error("no deadline was defined")
-		case <-time.After(100 * time.Millisecond):
-		}
+	context.Go(func() {
+		assertNoDeadline(t)
 		wg.Done()
 	})
 
-	GoCtx(ctx, func() {
-		if _, ok := Deadline(); !ok {
-			t.Error("deadline did not propagated")
-		}
-		select {
-		case <-Done():
-		case <-time.After(500 * time.Millisecond):
-			t.Error("deadline did not propagated")
-		}
+	context.GoCtx(ctx, func() {
+		assertWithDeadline(t)
 		wg.Done()
 	})
 
 	wg.Wait()
+}
+
+func assertWithDeadline(t *testing.T) {
+	t.Helper()
+	ctx := context.Get()
+	if _, ok := ctx.Deadline(); !ok {
+		t.Error("deadline did not propagated")
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(500 * time.Millisecond):
+		t.Error("deadline did not propagated")
+	}
+}
+
+func assertNoDeadline(t *testing.T) {
+	t.Helper()
+	ctx := context.Get()
+	if _, ok := ctx.Deadline(); ok {
+		t.Error("no deadline was defined")
+	}
+	select {
+	case <-ctx.Done():
+		t.Error("no deadline was defined")
+	case <-time.After(100 * time.Millisecond):
+	}
 }
