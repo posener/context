@@ -86,6 +86,9 @@ func remove(id uint64) {
 // It returns the created context.
 // All following goroutine invocations should be replaced
 // by context.Go or context.GoCtx.
+//
+// Note:
+// 		This function won't be needed in the real implementation.
 func Init() Context {
 	ctx := Background()
 	store(ctx)
@@ -95,6 +98,9 @@ func Init() Context {
 // Get gets the context of the current goroutine
 // It may panic if the current go routine did not ran with
 // context.Go or context.GoCtx.
+//
+// Note:
+// 		This function won't panic in the real implementation.
 func Get() Context {
 	return load()
 }
@@ -108,11 +114,19 @@ func Set(ctx Context) {
 // the current context to the created goroutine.
 // It may panic if the current goroutine was not invoked with
 // context.Go or context.GoCtx.
+//
+// Note:
+// 		In the real implementation, this should be the behavior
+// 		of the `go` keyword. It will also won't panic.
 func Go(f func()) {
 	GoCtx(load(), f)
 }
 
 // GoCtx invokes f in a new goroutine with the given context.
+//
+// Note:
+// 		In the real implementation, accepting the context argument
+//		should be incorporated into the behavior of the `go` keyword.
 func GoCtx(ctx Context, f func()) {
 	go func() {
 		id := store(ctx)
