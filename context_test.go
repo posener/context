@@ -6,13 +6,19 @@ import (
 	"time"
 
 	"github.com/posener/context"
+	"github.com/stretchr/testify/assert"
+)
+
+const (
+	shortTime  = 100 * time.Millisecond
+	longerTime = 500 * time.Millisecond
 )
 
 func TestSetTimeout(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Init()
-	setCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	setCtx, cancel := context.WithTimeout(ctx, shortTime)
 	defer cancel()
 	context.Set(setCtx)
 
@@ -40,7 +46,7 @@ func TestSetTimeout(t *testing.T) {
 func TestNoSetTimeout(t *testing.T) {
 	t.Parallel()
 	ctx := context.Init()
-	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, shortTime)
 	defer cancel()
 
 	var wg sync.WaitGroup
@@ -67,7 +73,7 @@ func assertWithDeadline(t *testing.T) {
 	}
 	select {
 	case <-ctx.Done():
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(longerTime):
 		t.Error("deadline did not propagated")
 	}
 }
@@ -81,6 +87,26 @@ func assertNoDeadline(t *testing.T) {
 	select {
 	case <-ctx.Done():
 		t.Error("no deadline was defined")
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(longerTime):
 	}
+}
+
+func TestPanic(t *testing.T) {
+	t.Parallel()
+	context.Init()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		assert.Panics(t, func() { context.Get() })
+		wg.Done()
+	}()
+
+	go func() {
+		assert.Panics(t, func() { context.Go(func() {}) })
+		wg.Done()
+	}()
+
+	wg.Wait()
 }
