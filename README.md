@@ -1,7 +1,7 @@
 # context
 
 A proof of concept implementation of **goroutine scoped context**,
-proposed in [this blog post](https://posener.github.io/go-goroutine-context-proposal).
+proposed in [this blog post](https://posener.github.io/goroutine-scoped-context).
 
 This library should not be used for production code.
 
