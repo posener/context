@@ -1,6 +1,6 @@
 # context
 
-A proof of concept implementation of context stored in goroutine scope,
+A proof of concept implementation of **goroutine scoped context**,
 proposed in [this blog post](https://posener.github.io/go-goroutine-context-proposal).
 
 This library should not be used for production code.
