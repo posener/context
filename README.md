@@ -16,6 +16,16 @@ import (
 )
 ```
 
+Since this implementation does not involve changes to the runtime,
+the goroutine context must be initialized.
+
+```diff
+func main() {
++    context.Init()
+    // Go code goes here.
+}
+```
+
 Functions should not anymore receive the context in the first argument.
 They should get it from the goroutine scope.
 
@@ -49,7 +59,6 @@ More complected functions:
 ```diff
 -go foo(1, "hello")
 +context.Go(func() { foo(1, "hello") })
-})
 ```
 
 Running a goroutine with a new context:
@@ -65,12 +74,3 @@ context.GoCtx(ctx, foo)
 -f(context.TODO())
 +f(context.Get())
 ```
-
-Since this implementation does not involve changes to the runtime,
-the goroutine context must be initialized.
-
-```diff
-func main() {
-+    context.Init()
-    // Go code goes here.
-}
