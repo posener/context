@@ -98,15 +98,19 @@ func TestPanic(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	go func() {
-		assert.Panics(t, func() { context.Get() })
-		wg.Done()
-	}()
+	t.Run("Using context.Get inside non-context goroutine", func(t *testing.T) {
+		go func() {
+			assert.Panics(t, func() { context.Get() })
+			wg.Done()
+		}()
+	})
 
-	go func() {
-		assert.Panics(t, func() { context.Go(func() {}) })
-		wg.Done()
-	}()
+	t.Run("Using context.Go inside non-context goroutine", func(t *testing.T) {
+		go func() {
+			assert.Panics(t, func() { context.Go(func() {}) })
+			wg.Done()
+		}()
+	})
 
 	wg.Wait()
 }
