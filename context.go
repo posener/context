@@ -18,7 +18,6 @@ var (
 	WithDeadline = stdctx.WithDeadline
 
 	Background = stdctx.Background
-	TODO       = stdctx.TODO
 
 	DeadlineExceeded = stdctx.DeadlineExceeded
 	Canceled         = stdctx.Canceled
@@ -27,57 +26,61 @@ var (
 var (
 	// storage is used instead of goroutine local storage to
 	// store goroutine(ID) to Context mapping.
-	storage map[uint64]Context
+	storage map[uint64][]Context
 	// mutex for locking the storage map.
 	mu sync.RWMutex
 )
 
 func init() {
-	storage = make(map[uint64]Context)
+	storage = make(map[uint64][]Context)
 }
 
-// load simulates fetching of context from goroutine local storage
+// peek simulates fetching of context from goroutine local storage
 // It gets the context from `storage` map according to the current
 // goroutine ID.
 // If the goroutine ID is not in the map, it panic. This case
-// may occur when a user did not use the `context.Go` to invoke a
-// goroutine.
+// may occur when a user did not use the `context.Go` or `context.GoCtx`
+// to invoke a goroutine.
 // Note: real goroutine local storage won't need the implemented locking
 // exists in this implementation, since the storage won't be accessible from
 // different goroutines.
-func load() Context {
+func peek() Context {
 	id := runtime.GID()
 	mu.RLock()
 	defer mu.RUnlock()
-	ctx := storage[id]
-	if ctx == nil {
+	stack := storage[id]
+	if stack == nil {
 		panic("goroutine ran without using context.Go or context.GoCtx")
 	}
-	return ctx
+	return stack[len(stack)-1]
 }
 
-// store simulates storing of context in the goroutine local storage.
-// It gets the context to store, and returns an GID for later usage, if needed.
+// push simulates storing of context in the goroutine local storage.
+// It gets the context to push to the context stack, and returns a pop function.
 // Note: real goroutine local storage won't need the implemented locking
 // exists in this implementation, since the storage won't be accessible from
 // different goroutines.
-func store(ctx Context) uint64 {
+func push(ctx Context) func() {
 	id := runtime.GID()
 	mu.Lock()
 	defer mu.Unlock()
-	storage[id] = ctx
-	return id
+	storage[id] = append(storage[id], ctx)
+	return func() { pop(id) }
 }
 
-// remove removes the context from the thread local storage according to a
-// given GID.
+// pop simulates removal of a context from the thread local storage.
+// If the stack is emptied, it will be removed from the storage map.
 // Note: real goroutine local storage won't need the implemented locking
 // exists in this implementation, since the storage won't be accessible from
 // different goroutines.
-func remove(id uint64) {
+func pop(id uint64) {
 	mu.Lock()
 	defer mu.Unlock()
-	delete(storage, id)
+	storage[id] = storage[id][:len(storage[id])-1]
+	// Remove the stack from the map if it was emptied
+	if len(storage[id]) == 0 {
+		delete(storage, id)
+	}
 }
 
 // Init creates the first background context in a program.
@@ -88,49 +91,30 @@ func remove(id uint64) {
 // by context.Go or context.GoCtx.
 //
 // Note:
-// 		This function won't be needed in the real implementation.
+//       This function won't be needed in the real implementation.
 func Init() Context {
 	ctx := Background()
-	store(ctx)
+	push(ctx)
 	return ctx
 }
 
-// Get gets the context of the current goroutine
-// It may panic if the current go routine did not ran with
-// context.Go or context.GoCtx.
-//
-// Note:
-// 		This function won't panic in the real implementation.
+// Get gets the current context
 func Get() Context {
-	return load()
+	return peek()
 }
 
-// Set updates the context of the current goroutine.
-func Set(ctx Context) {
-	store(ctx)
+// RunCtx invokes f the given context.
+func RunCtx(ctx Context, f func()) {
+	defer push(ctx)()
+	f()
 }
 
-// Go invokes f in a new goroutine and takes care of propagating
-// the current context to the created goroutine.
-// It may panic if the current goroutine was not invoked with
-// context.Go or context.GoCtx.
-//
-// Note:
-// 		In the real implementation, this should be the behavior
-// 		of the `go` keyword. It will also won't panic.
-func Go(f func()) {
-	GoCtx(load(), f)
-}
-
-// GoCtx invokes f in a new goroutine with the given context.
-//
-// Note:
-// 		In the real implementation, accepting the context argument
-//		should be incorporated into the behavior of the `go` keyword.
+// GoCtx invokes f in a goroutine with the given context
 func GoCtx(ctx Context, f func()) {
-	go func() {
-		id := store(ctx)
-		defer remove(id)
-		f()
-	}()
+	go RunCtx(ctx, f)
+}
+
+// Go invokes f in a goroutine with the parent context
+func Go(f func()) {
+	GoCtx(Get(), f)
 }

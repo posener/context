@@ -33,16 +33,15 @@ They should get it from the goroutine scope.
 -func foo(ctx context.Context) {
 +func foo() {
 +   ctx := context.Get()
-    // Use context.
+    // Use ctx...
 }
 ```
 
-Applying context to the current goroutine:
+Running the previously defined `foo`, with the context:
 
-```go
-// `ctx` is the context that we want to have in all following
-// call graph from this point in the code.
-context.Set(ctx)
+```diff
+-foo(ctx)
++context.RunCtx(ctx, foo)
 ```
 
 Invoking goroutines should be done with `context.Go` or `context.GoCtx`
@@ -54,11 +53,28 @@ Running a new goroutine with the current stored context:
 +context.Go(foo)
 ```
 
-More complected functions:
+More complected function:
 
 ```diff
--go foo(1, "hello")
-+context.Go(func() { foo(1, "hello") })
+-func bar(ctx context.Context, i int, s string) {
++func bar(i int, s string) {
++   ctx := context.Get()
+    // Use ctx...
+}
+```
+
+Should be wrapped with an empty function:
+
+```diff
+-bar(ctx, 1, "hello")
++context.RunCtx(ctx, func() { bar(1, "hello") })
+```
+
+Or fo goroutines:
+
+```diff
+-go bar(ctx, 1, "hello")
++context.GoCtx(ctx, func() { bar(1, "hello") })
 ```
 
 Running a goroutine with a new context:
@@ -68,9 +84,9 @@ Running a goroutine with a new context:
 context.GoCtx(ctx, foo)
 ```
 
-`context.TODO` should not be used anymore:
+`context.TODO` and should not be used anymore:
 
 ```diff
--f(context.TODO())
-+f(context.Get())
+-foo(context.TODO())
++foo(context.Get())
 ```
