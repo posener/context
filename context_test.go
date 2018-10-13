@@ -20,7 +20,7 @@ func TestSetTimeout(t *testing.T) {
 	ctx := context.Init()
 	setCtx, cancel := context.WithTimeout(ctx, shortTime)
 	defer cancel()
-	context.Set(setCtx)
+	defer context.Set(setCtx)()
 
 	var wg sync.WaitGroup
 	wg.Add(3)
@@ -63,6 +63,20 @@ func TestNoSetTimeout(t *testing.T) {
 	})
 
 	wg.Wait()
+}
+
+func TestNestedCalls(t *testing.T) {
+	t.Parallel()
+	ctx := context.Init()
+	defer context.Set(ctx)()
+	func() {
+		assertNoDeadline(t)
+		ctx, cancel := context.WithTimeout(ctx, shortTime)
+		defer cancel()
+		defer context.Set(ctx)()
+		assertWithDeadline(t)
+	}()
+	assertNoDeadline(t)
 }
 
 func assertWithDeadline(t *testing.T) {
