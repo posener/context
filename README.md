@@ -37,12 +37,18 @@ They should get it from the goroutine scope.
 }
 ```
 
-Applying context to the current goroutine:
+Applying context to a scope:
 
 ```go
-// `ctx` is the context that we want to have in all following
-// call graph from this point in the code.
-context.Set(ctx)
+unset := context.Set(ctx)
+// ctx is applied until unset is called, or a deeper `Set` call.
+unset()
+```
+
+Or:
+```go
+defer context.Set(ctx)()
+// ctx is applied until the end of the function or a deeper `Set` call.
 ```
 
 Invoking goroutines should be done with `context.Go` or `context.GoCtx`
