@@ -1,127 +1,105 @@
-package context_test
+package context
 
 import (
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/posener/context"
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	shortTime  = 100 * time.Millisecond
-	longerTime = 500 * time.Millisecond
-)
+type testContext int
 
-func TestSetTimeout(t *testing.T) {
+func (testContext) Deadline() (deadline time.Time, ok bool) { return }
+func (testContext) Done() <-chan struct{}                   { return make(<-chan struct{}) }
+func (testContext) Err() error                              { return nil }
+func (testContext) Value(key interface{}) interface{}       { return nil }
+
+func TestSet(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Init()
-	setCtx, cancel := context.WithTimeout(ctx, shortTime)
-	defer cancel()
-	defer context.Set(setCtx)()
+	ctx1 := Init()
+	ctx2 := testContext(2)
+	ctx3 := testContext(3)
+
+	unset := Set(ctx2)
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 
-	context.Go(func() {
-		assertWithDeadline(t)
+	Go(func() {
+		assert.Equal(t, Get(), ctx2)
 		wg.Done()
 	})
 
-	context.GoCtx(setCtx, func() {
-		assertWithDeadline(t)
+	GoCtx(ctx2, func() {
+		assert.Equal(t, Get(), ctx2)
 		wg.Done()
 	})
 
-	context.GoCtx(ctx, func() {
-		assertNoDeadline(t)
+	GoCtx(ctx3, func() {
+		assert.Equal(t, Get(), ctx3)
+		wg.Done()
+	})
+
+	unset()
+
+	Go(func() {
+		assert.Equal(t, Get(), ctx1)
 		wg.Done()
 	})
 
 	wg.Wait()
 }
 
-func TestNoSetTimeout(t *testing.T) {
+func TestSetNested(t *testing.T) {
 	t.Parallel()
-	ctx := context.Init()
-	ctx, cancel := context.WithTimeout(ctx, shortTime)
-	defer cancel()
+	ctx1 := Init()
+	ctx2 := testContext(2)
+	ctx3 := testContext(3)
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	context.Go(func() {
-		assertNoDeadline(t)
-		wg.Done()
-	})
-
-	context.GoCtx(ctx, func() {
-		assertWithDeadline(t)
-		wg.Done()
-	})
-
-	wg.Wait()
+	assert.Equal(t, Get(), ctx1)
+	unset2 := Set(ctx2)
+	assert.Equal(t, Get(), ctx2)
+	unset3 := Set(ctx3)
+	assert.Equal(t, Get(), ctx3)
+	unset3()
+	assert.Equal(t, Get(), ctx2)
+	unset2()
+	assert.Equal(t, Get(), ctx1)
 }
 
-func TestNestedCalls(t *testing.T) {
+func TestFunctionScope(t *testing.T) {
 	t.Parallel()
-	ctx := context.Init()
-	defer context.Set(ctx)()
+	ctx1 := Init()
+	ctx2 := testContext(2)
+
 	func() {
-		assertNoDeadline(t)
-		ctx, cancel := context.WithTimeout(ctx, shortTime)
-		defer cancel()
-		defer context.Set(ctx)()
-		assertWithDeadline(t)
+		assert.Equal(t, Get(), ctx1)
+		defer Set(ctx2)()
+		assert.Equal(t, Get(), ctx2)
 	}()
-	assertNoDeadline(t)
-}
 
-func assertWithDeadline(t *testing.T) {
-	t.Helper()
-	ctx := context.Get()
-	if _, ok := ctx.Deadline(); !ok {
-		t.Error("deadline did not propagated")
-	}
-	select {
-	case <-ctx.Done():
-	case <-time.After(longerTime):
-		t.Error("deadline did not propagated")
-	}
-}
-
-func assertNoDeadline(t *testing.T) {
-	t.Helper()
-	ctx := context.Get()
-	if _, ok := ctx.Deadline(); ok {
-		t.Error("no deadline was defined")
-	}
-	select {
-	case <-ctx.Done():
-		t.Error("no deadline was defined")
-	case <-time.After(longerTime):
-	}
+	assert.Equal(t, Get(), ctx1)
 }
 
 func TestPanic(t *testing.T) {
 	t.Parallel()
-	context.Init()
+	Init()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 
 	t.Run("Using context.Get inside non-context goroutine", func(t *testing.T) {
 		go func() {
-			assert.Panics(t, func() { context.Get() })
+			assert.Panics(t, func() { Get() })
 			wg.Done()
 		}()
 	})
 
 	t.Run("Using context.Go inside non-context goroutine", func(t *testing.T) {
 		go func() {
-			assert.Panics(t, func() { context.Go(func() {}) })
+			assert.Panics(t, func() { Go(func() {}) })
 			wg.Done()
 		}()
 	})
