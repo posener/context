@@ -79,7 +79,8 @@ context.GoCtx(ctx, foo)
 
 ```diff
 -f(context.TODO())
-+f(context.Get())```
++f(context.Get())
+```
 
 ## Sub Packages
 
