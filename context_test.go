@@ -17,7 +17,6 @@ func (testContext) Value(key interface{}) interface{}       { return nil }
 
 func TestSet(t *testing.T) {
 	t.Parallel()
-
 	ctx1 := Init()
 	ctx2 := testContext(2)
 	ctx3 := testContext(3)
@@ -87,22 +86,25 @@ func TestPanic(t *testing.T) {
 	t.Parallel()
 	Init()
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-
 	t.Run("Using context.Get inside non-context goroutine", func(t *testing.T) {
-		go func() {
-			assert.Panics(t, func() { Get() })
-			wg.Done()
-		}()
+		assert.Panics(t, func() { Get() })
 	})
 
 	t.Run("Using context.Go inside non-context goroutine", func(t *testing.T) {
-		go func() {
-			assert.Panics(t, func() { Go(func() {}) })
-			wg.Done()
-		}()
+		assert.Panics(t, func() { Go(func() {}) })
 	})
 
-	wg.Wait()
+	t.Run("Invoking unset twice", func(t *testing.T) {
+		unset := Set(testContext(1))
+		unset()
+		assert.Panics(t, unset)
+	})
+
+	t.Run("Invoking unset unordered", func(t *testing.T) {
+		unset1 := Set(testContext(1))
+		unset2 := Set(testContext(2))
+		assert.Panics(t, unset1)
+		unset2()
+		unset1()
+	})
 }

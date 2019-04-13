@@ -65,7 +65,8 @@ func push(ctx Context) func() {
 	mu.Lock()
 	defer mu.Unlock()
 	storage[id] = append(storage[id], ctx)
-	return func() { pop(id) }
+	size := len(storage[id])
+	return func() { pop(id, size) }
 }
 
 // pop simulates removal of a context from the thread local storage.
@@ -73,9 +74,15 @@ func push(ctx Context) func() {
 // Note: real goroutine local storage won't need the implemented locking
 // exists in this implementation, since the storage won't be accessible from
 // different goroutines.
-func pop(id uint64) {
+func pop(id uint64, stackSize int) {
 	mu.Lock()
 	defer mu.Unlock()
+	if len(storage[id]) != stackSize {
+		if len(storage[id]) < stackSize {
+			panic("multiple call for unset")
+		}
+		panic("there are contexts that should be unset before")
+	}
 	storage[id] = storage[id][:len(storage[id])-1]
 	// Remove the stack from the map if it was emptied
 	if len(storage[id]) == 0 {
@@ -110,13 +117,10 @@ func Get() Context {
 
 // Set creates a context scope.
 // It returns an "unset" function that should invoked at the
-// end of this context scope. In any case, it must be invoked.
+// end of this context scope. In any case, it must be invoked,
+// exactly once, and in the right order.
 func Set(ctx Context) func() {
-	pop := push(ctx)
-	var once sync.Once
-	return func() {
-		once.Do(pop)
-	}
+	return push(ctx)
 }
 
 // Go invokes f in a new goroutine and takes care of propagating
