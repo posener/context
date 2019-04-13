@@ -17,7 +17,7 @@ Since this implementation does not involve changes to the runtime,
 the goroutine context must be initialized.
 
 	 func main() {
-	+    context.Init()
+	+	context.Init()
 	 	// Go code goes here.
 	 }
 
