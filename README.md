@@ -21,7 +21,7 @@ the goroutine context must be initialized.
 
 ```diff
  func main() {
-+    context.Init()
++	context.Init()
  	// Go code goes here.
  }
 ```
